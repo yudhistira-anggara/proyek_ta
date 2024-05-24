@@ -1,0 +1,7 @@
+matplotlib~=3.8.4
+torchaudio~=2.0.0
+pydub~=0.25.1
+datasets~=2.19.1
+simple-diarizer
+openai-whisper
+transformers
