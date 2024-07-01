@@ -1,0 +1,11 @@
+/transcribe.txt
+/dataset/
+/segments.txt
+/pretrained_models/
+/target/
+/wav2mel.pt
+/wav/
+/raw/
+/podcast_2.txt
+/whisper-small-ina/*
+/model/*
