@@ -1,7 +1,9 @@
+future~=1.0.0
+torch~=2.3.1
+numpy~=1.26.4
 matplotlib~=3.8.4
-torchaudio~=2.0.0
 pydub~=0.25.1
-datasets~=2.19.1
-simple-diarizer
+torchaudio~=2.3.1
+scikit-learn~=1.4.2
+speechbrain~=1.0.0
 openai-whisper
-transformers

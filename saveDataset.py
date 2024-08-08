@@ -1,8 +1,11 @@
+from silero_vad import get_speech_timestamps, load_silero_vad
+from simple_diarizer.diarizer import Diarizer
 import torchaudio
 import whisper
+import torch
+import time
 import json
 import os
-import torch
 
 
 def save_as_jsonl(data, filename):
@@ -12,7 +15,7 @@ def save_as_jsonl(data, filename):
 
 
 if __name__ == "__main__":
-    inputDirectory = "dataset"
+    inputDirectory = "wav"
     textDirectory = "target"
     if not os.path.exists(textDirectory):
         os.mkdir(textDirectory)
@@ -20,32 +23,51 @@ if __name__ == "__main__":
     filenames = os.listdir(inputDirectory)
     torch.set_num_threads(1)
 
-    model = whisper.load_model("small", download_root="model")
+    stt_model = whisper.load_model("small", download_root="model")
+    diarizer = Diarizer(embed_model="ecapa", cluster_method="ahc")
+    vad_model = load_silero_vad()
     dataset_path = list()
-    for filename in filenames:
+    for filename in filenames[:1]:
         audio_path = os.path.join(inputDirectory, filename)
         no_ext = os.path.splitext(filename)[0]
         text_path = os.path.join(textDirectory, f"{no_ext}.txt")
-        if os.path.exists(text_path):
-            continue
+        dataset_path.append({"audio": audio_path, "text": text_path})
+        # if os.path.exists(text_path):
+        #     print(f"target for {no_ext} already exist")
+        #     continue
         wav, fs = torchaudio.load(audio_path)
 
-        result = model.transcribe(wav[0, :])
-        with open(text_path, "w", encoding="utf-8") as f:
-            f.writelines(result['text'])
-        dataset_path.append({"audio": audio_path, "text": text_path})
-        print(f"done packing {no_ext}.")
+        start_time = time.time()
+        result = stt_model.transcribe(wav[0, :])
+        segments = result['segments']
+        for segment in segments:
+            wav_segment = wav[:, segment['start']:segment['end']]
+            speech_timestamps = get_speech_timestamps(audio=wav_segment, model=vad_model, threshold=.9)
+            embeds, segments = diarizer.recording_embeds(wav_segment, fs, speech_timestamps)
+            cluster_labels = diarizer.cluster(
+                embeds,
+                n_clusters=2,
+            )
 
-    TRAIN_SPLIT, TEST_SPLIT = 0.8, 0.2
+        execution_time = time.time() - start_time
+        print("--- %s seconds ---" % (execution_time))
+        print(result)
 
-    train_dataset = dataset_path[:int(len(dataset_path) * TRAIN_SPLIT)]
-    test_dataset = dataset_path[:int(len(dataset_path) * TEST_SPLIT)]
 
-    if not os.path.exists("json_directory"):
-        os.makedirs("json_directory")
+    # audios = [os.path.join(inputDirectory, f"{i}-{j}.wav") for i in range(10) for j in range(10)]
+    # texts = [os.path.join(textDirectory, f"{i}-{j}.txt") for i in range(10) for j in range(10)]
+    # dataset_path = [{"audio": audios[i], "text": texts[i]} for i in range(100)]
 
-    save_as_jsonl(train_dataset, "json_directory/train.jsonl")
-    save_as_jsonl(test_dataset, "json_directory/test.jsonl")
-
+    # TRAIN_SPLIT, TEST_SPLIT = 0.8, 0.2
+    # splitter = int(len(dataset_path) * TRAIN_SPLIT)
+    # train_dataset = dataset_path[:splitter]
+    # test_dataset = dataset_path[splitter:]
+    #
+    # if not os.path.exists("json_directory"):
+    #     os.makedirs("json_directory")
+    #
+    # save_as_jsonl(train_dataset, "json_directory/train.jsonl")
+    # save_as_jsonl(test_dataset, "json_directory/test.jsonl")
+    # save_as_jsonl(dataset_path, "json_directory/dataset.jsonl")
     print("done")
     
